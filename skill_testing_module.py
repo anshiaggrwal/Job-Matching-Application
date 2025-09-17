@@ -689,6 +689,10 @@ class SkillTester:
         st.markdown("---")
         st.subheader(f"🔍 Testing: {skill.title()} ({difficulty.title()} Level)")
         
+        # Show test instructions
+        if not st.session_state.test_completed:
+            st.warning("⚠️ **Important:** Once you select an answer, you cannot change it. Choose carefully!")
+        
         # Progress indicator
         answered_count = len(st.session_state.current_answers)
         total_questions = len(questions)
@@ -696,6 +700,9 @@ class SkillTester:
         progress = answered_count / total_questions if total_questions > 0 else 0
         st.progress(progress)
         st.write(f"Progress: {answered_count}/{total_questions} questions answered")
+        
+        # Check if test is completed and results should be shown
+        show_results = st.session_state.test_completed
         
         # Display questions
         all_answered = True
@@ -708,43 +715,71 @@ class SkillTester:
             # Check if this question was already answered
             current_answer = st.session_state.current_answers.get(question_key, None)
             
-            selected_answer = st.radio(
-                "Choose your answer:",
-                question['options'],
-                key=question_key,
-                index=current_answer if current_answer is not None else None
-            )
-            
-            # Store the answer when selected
-            if selected_answer is not None:
-                answer_index = question['options'].index(selected_answer)
-                st.session_state.current_answers[question_key] = answer_index
+            if current_answer is not None:
+                # Question already answered - show the locked answer
+                selected_option = question['options'][current_answer]
+                st.info(f"Your answer: **{selected_option}** (Locked)")
                 
-                # Show immediate feedback
-                is_correct = answer_index == question['answer']
-                if is_correct:
-                    st.success("✅ Correct!")
-                else:
-                    st.error(f"❌ Incorrect. The correct answer is: {question['options'][question['answer']]}")
-                
-                if question.get('explanation'):
-                    st.info(f"💡 **Explanation:** {question['explanation']}")
+                # Show feedback only if test is completed
+                if show_results:
+                    is_correct = current_answer == question['answer']
+                    if is_correct:
+                        st.success("✅ Correct!")
+                    else:
+                        st.error(f"❌ Incorrect. The correct answer is: **{question['options'][question['answer']]}**")
+                    
+                    if question.get('explanation'):
+                        st.info(f"💡 **Explanation:** {question['explanation']}")
+                        
             else:
-                all_answered = False
+                # Question not answered yet - show options
+                selected_answer = st.radio(
+                    "Choose your answer:",
+                    question['options'],
+                    key=question_key,
+                    index=None
+                )
+                
+                # Lock the answer when selected
+                if selected_answer is not None:
+                    answer_index = question['options'].index(selected_answer)
+                    st.session_state.current_answers[question_key] = answer_index
+                    st.success(f"Answer locked: **{selected_answer}**")
+                    st.rerun()  # Refresh to show locked state
+                else:
+                    all_answered = False
             
             st.markdown("---")
         
-        # Submit test button
+        # Submit test button (only show when all questions answered but test not submitted)
         if all_answered and not st.session_state.test_completed:
+            st.warning("⚠️ Once you submit, you cannot change your answers!")
             if st.button("📊 Submit Test", type="primary"):
                 self._calculate_and_store_results()
                 st.session_state.test_completed = True
-                st.success("Test completed! Check the Results tab to see your score.")
+                st.balloons()  # Celebrate completion
                 st.rerun()
         
-        # Show completion message
+        # Show completion message and results
         if st.session_state.test_completed:
-            st.success("✅ Test completed! Your results have been saved.")
+            # Calculate and display immediate results
+            result_key = f"{skill}_{difficulty}"
+            if result_key in st.session_state.test_results:
+                result = st.session_state.test_results[result_key]
+                
+                st.success("✅ Test completed!")
+                
+                # Show summary results
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Score", f"{result['score']}/{result['total']}")
+                with col2:
+                    st.metric("Percentage", f"{result['percentage']:.1f}%")
+                with col3:
+                    st.metric("Status", result['status'])
+                
+                st.info("📊 Detailed results with explanations are shown above and available in the Results tab.")
+                
             if st.button("🔄 Take Another Test"):
                 # Reset for new test
                 st.session_state.current_test_skill = None
@@ -1024,4 +1059,4 @@ if __name__ == "__main__":
         tester.conduct_skill_assessment(demo_skills)
     
     with tab2:
-        stm.display_test_results()
+        display_test_results()
