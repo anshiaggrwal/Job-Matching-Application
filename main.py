@@ -9,6 +9,7 @@ import docx
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import pandas as pd
+import company_sidebar_module as csm
 from collections import Counter
 import os
 import skill_testing_module as stm
@@ -266,44 +267,9 @@ def main():
     tab1, tab2, tab3 = st.tabs(["📄 Resume Analysis", "🎯 Skill Testing", "📊 Test Results"])
     
     with tab1:
-        # Sidebar
-        with st.sidebar:
-            st.markdown("### 🧠 AI Features:")
-            st.markdown("""
-            - **Hugging Face Models** for intelligent text analysis
-            - **Advanced NLP** for skill extraction
-            - **Smart Matching** algorithms
-            - **Skill Validation Tests** with multiple difficulty levels
-            - **Confidence Scoring** for predictions
-            """)
-            
-            st.markdown("### 📊 Supported Roles:")
-            for job_title in JOB_CATEGORIES.keys():
-                st.markdown(f"• {job_title}")
-            
-            # Model loading section
-            st.markdown("---")
-            st.markdown("### 🔧 Model Status:")
-            
-            if st.button("Load AI Models"):
-                with st.spinner("Loading Hugging Face models... This may take a moment."):
-                    try:
-                        # Try loading simpler model first
-                        simple_model = load_simple_model()
-                        if simple_model:
-                            st.session_state.hf_model = simple_model
-                            st.session_state.models_loaded = True
-                            st.success("✅ AI Model loaded successfully!")
-                        else:
-                            st.error("❌ Failed to load AI models")
-                    except Exception as e:
-                        st.error(f"❌ Error loading models: {str(e)}")
-            
-            if st.session_state.models_loaded:
-                st.success("🟢 AI Models Ready")
-            else:
-                st.warning("🟡 Click 'Load AI Models' to enable advanced features")
+        csm.create_complete_sidebar(JOB_CATEGORIES)
         
+            
         # Main content
         col1, col2 = st.columns([1, 1])
         
