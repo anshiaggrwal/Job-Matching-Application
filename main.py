@@ -179,16 +179,21 @@ def go_back():
 # ---------------------- HEADER LAYOUT ----------------------
 def display_header():
     st.markdown('<div class="custom-header">', unsafe_allow_html=True)
-    col_logo, col_title_text = st.columns([1, 4])
-    with col_logo:
+    col_logo_left, col_title_text, col_logo_right = st.columns([1, 4, 1])
+    with col_logo_left:
         if Path(LOGO_IMAGE_FILE).is_file():
-            st.image(LOGO_IMAGE_FILE, width=120)
+            st.image(LOGO_IMAGE_FILE, width=200)
         else:
             st.warning(f"Logo image '{LOGO_IMAGE_FILE}' not found. Displaying default icon.")
             st.markdown('<div style="font-size: 80px;">💼</div>', unsafe_allow_html=True)
     with col_title_text:
         st.markdown('<p class="title-text" style="margin: 0; padding: 0;">Smart Job Portal</p>', unsafe_allow_html=True)
         st.markdown('<p class="subtitle-text" style="margin: 0; padding: 0;">Connecting Talent with Opportunity through AI</p>', unsafe_allow_html=True)
+    with col_logo_right:
+        if Path("E:\programming\Job Matching App\logo.jpeg").is_file():  # Use the uploaded logo file name
+            st.image("logo.jpeg", width=200)  # Adjust width as needed
+        else:
+            st.warning("Naukri Milaao logo not found. Please ensure the file 'naukri_milaao_logo.jpg' is in the directory.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------- ROLE SELECTION PAGE ----------------------

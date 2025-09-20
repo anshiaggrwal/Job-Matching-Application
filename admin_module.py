@@ -52,7 +52,7 @@ def display_admin_dashboard():
     )
     st.header("👤 Admin Panel")
     
-    # Initialize shared session state
+    # Initialize shared session state with empty DataFrames (no dummy data)
     if 'students' not in st.session_state:
         st.session_state.students = pd.DataFrame(columns=[
             'StudentID', 'Name', 'Email', 'College', 'Degree', 'Year', 'CGPA', 
@@ -73,39 +73,66 @@ def display_admin_dashboard():
         ])
     if 'applications' not in st.session_state:
         st.session_state.applications = pd.DataFrame(columns=['JobID', 'StudentID', 'ApplicationDate', 'Status'])
+    if 'shortlists' not in st.session_state:
+        st.session_state.shortlists = pd.DataFrame(columns=['JobID', 'StudentID', 'ShortlistDate', 'Status'])
     if 'admin_credentials' not in st.session_state:
         st.session_state.admin_credentials = {'ADMIN001': 'admin@123'}
 
     # Ensure correct data types for jobs DataFrame
-    jobs_df = st.session_state.jobs.copy()  # Work on a copy to avoid modifying during iteration
-    students_df = st.session_state.students
+    jobs_df = st.session_state.jobs.copy()
+    students_df = st.session_state.students.copy()
     companies_df = st.session_state.companies
     applications_df = st.session_state.applications
+    shortlists_df = st.session_state.shortlists
 
-    # Convert numeric columns to appropriate types
-    numeric_columns = ['Openings', 'Applications', 'Min Resume Score', 'Min Test Score']
-    for col in numeric_columns:
+    # Convert numeric columns in jobs_df
+    numeric_columns_jobs = ['Openings', 'Applications', 'Min Resume Score', 'Min Test Score']
+    for col in numeric_columns_jobs:
         if col in jobs_df.columns:
             jobs_df[col] = pd.to_numeric(jobs_df[col], errors='coerce').fillna(0).astype(int)
 
-    # Ensure string columns are strings
-    string_columns = ['JobID', 'Company', 'Role', 'Location', 'Salary', 'Experience', 'Description', 'Status']
-    for col in string_columns:
+    # Convert string columns in jobs_df
+    string_columns_jobs = ['JobID', 'Company', 'Role', 'Location', 'Salary', 'Experience', 'Description', 'Status']
+    for col in string_columns_jobs:
         if col in jobs_df.columns:
             jobs_df[col] = jobs_df[col].astype(str)
 
-    # Ensure list columns
+    # Ensure list and datetime columns in jobs_df
     if 'Required Skills' in jobs_df.columns:
         jobs_df['Required Skills'] = jobs_df['Required Skills'].apply(lambda x: x if isinstance(x, list) else [])
-
-    # Ensure datetime columns
     if 'Posted_Date' in jobs_df.columns:
         jobs_df['Posted_Date'] = pd.to_datetime(jobs_df['Posted_Date'], errors='coerce').fillna(pd.to_datetime(datetime.now()))
 
-    # Update session state with cleaned DataFrame
-    st.session_state.jobs = jobs_df
+    # Convert numeric columns in students_df
+    numeric_columns_students = ['CGPA', 'Resume Score', 'Test Score', 'Skills_Count', 'Applications_Count']
+    for col in numeric_columns_students:
+        if col in students_df.columns:
+            if col == 'CGPA':
+                students_df[col] = pd.to_numeric(students_df[col], errors='coerce').fillna(0.0).astype(float)
+            else:
+                students_df[col] = pd.to_numeric(students_df[col], errors='coerce').fillna(0).astype(int)
 
-    # Ensure all required columns exist with appropriate default values
+    # Convert string columns in students_df
+    string_columns_students = ['StudentID', 'Name', 'Email', 'College', 'Degree', 'Year', 'Status']
+    for col in string_columns_students:
+        if col in students_df.columns:
+            students_df[col] = students_df[col].astype(str)
+
+    # Ensure list and boolean columns in students_df
+    if 'Skills' in students_df.columns:
+        students_df['Skills'] = students_df['Skills'].apply(lambda x: x if isinstance(x, list) else [])
+    if 'Test_Completed' in students_df.columns:
+        students_df['Test_Completed'] = students_df['Test_Completed'].astype(bool)
+    if 'Resume_Uploaded' in students_df.columns:
+        students_df['Resume_Uploaded'] = students_df['Resume_Uploaded'].astype(bool)
+    if 'Registration_Date' in students_df.columns:
+        students_df['Registration_Date'] = pd.to_datetime(students_df['Registration_Date'], errors='coerce').fillna(pd.to_datetime(datetime.now()))
+
+    # Update session state
+    st.session_state.jobs = jobs_df
+    st.session_state.students = students_df
+
+    # Ensure all required columns exist
     required_student_cols = [
         'StudentID', 'Name', 'Email', 'College', 'Degree', 'Year', 'CGPA', 
         'Resume Score', 'Test Score', 'Skills', 'Skills_Count', 
@@ -117,9 +144,9 @@ def display_admin_dashboard():
             if col == 'Skills':
                 students_df[col] = [[] for _ in range(len(students_df))]
             elif col == 'Email':
-                students_df[col] = None
+                students_df[col] = ''
             elif '_Count' in col or 'Score' in col:
-                students_df[col] = 0
+                students_df[col] = 0 if col != 'CGPA' else 0.0
             elif 'Completed' in col or 'Uploaded' in col:
                 students_df[col] = False
             elif col == 'Status':
@@ -129,14 +156,6 @@ def display_admin_dashboard():
             else:
                 students_df[col] = ''
 
-    required_company_cols = [
-        'CompanyID', 'Name', 'Industry', 'Company_Size', 'Jobs_Posted', 
-        'Total_Applications', 'Approval_Status', 'Registration_Date'
-    ]
-    for col in required_company_cols:
-        if col not in companies_df.columns:
-            companies_df[col] = 0 if 'Posted' in col or 'Applications' in col else 'Pending' if col == 'Approval_Status' else pd.to_datetime(datetime.now()) if col == 'Registration_Date' else ''
-
     required_job_cols = [
         'JobID', 'Company', 'Role', 'Location', 'Salary', 'Experience', 
         'Description', 'Openings', 'Status', 'Posted_Date', 'Applications', 
@@ -145,27 +164,22 @@ def display_admin_dashboard():
     for col in required_job_cols:
         if col not in jobs_df.columns:
             jobs_df[col] = 0 if col in ['Applications', 'Openings', 'Min Resume Score', 'Min Test Score'] else 'Open' if col == 'Status' else pd.to_datetime(datetime.now()) if col == 'Posted_Date' else [] if col == 'Required Skills' else ''
-    st.session_state.jobs = jobs_df
 
     # Update derived metrics
     if not applications_df.empty:
         app_counts_jobs = applications_df.groupby('JobID').size()
         jobs_df['Applications'] = jobs_df['JobID'].map(app_counts_jobs).fillna(0).astype(int)
-        
         app_counts_students = applications_df.groupby('StudentID').size()
         students_df['Applications_Count'] = students_df['StudentID'].map(app_counts_students).fillna(0).astype(int)
-        
         company_apps = applications_df.merge(jobs_df[['JobID', 'Company']], on='JobID').groupby('Company').size()
         companies_df['Total_Applications'] = companies_df['Name'].map(company_apps).fillna(0).astype(int)
-    
-    # Update session state
+
+    st.session_state.jobs = jobs_df
     st.session_state.students = students_df
     st.session_state.companies = companies_df
-    st.session_state.jobs = jobs_df
 
     if not st.session_state.logged_in:
         col1, col2 = st.columns(2)
-        
         with col1:
             st.subheader("🔑 Login")
             with st.form("admin_login_form"):
@@ -178,7 +192,6 @@ def display_admin_dashboard():
                         st.rerun()
                     else:
                         st.error("❌ Invalid Admin ID or Password")
-        
         with col2:
             st.subheader("📝 Signup")
             with st.form("admin_signup_form"):
@@ -203,33 +216,26 @@ def display_admin_dashboard():
         
         if admin_option == "📊 Dashboard Overview":
             st.subheader("📊 Dashboard Overview")
-            
             col1, col2, col3, col4 = st.columns(4)
-            
             with col1:
                 total_students = len(students_df)
                 active_students = len(students_df[students_df['Status'] == 'Active'])
                 st.metric("Total Students", total_students, f"+{active_students} Active")
-            
             with col2:
                 total_companies = len(companies_df)
                 verified_companies = len(companies_df[companies_df['Approval_Status'] == 'Verified'])
                 st.metric("Total Companies", total_companies, f"{verified_companies} Verified")
-            
             with col3:
                 total_jobs = len(jobs_df)
                 open_jobs = len(jobs_df[jobs_df['Status'] == 'Open'])
                 st.metric("Total Jobs", total_jobs, f"{open_jobs} Open")
-            
             with col4:
                 total_applications = len(applications_df)
                 avg_applications = round(total_applications / total_jobs if total_jobs > 0 else 0, 1)
                 st.metric("Total Applications", total_applications, f"Avg: {avg_applications}")
-            
+
             st.markdown("---")
-            
             col_chart1, col_chart2 = st.columns(2)
-            
             with col_chart1:
                 st.subheader("Student Registration Trends")
                 if not students_df.empty:
@@ -239,7 +245,6 @@ def display_admin_dashboard():
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No student registrations yet.")
-            
             with col_chart2:
                 st.subheader("Jobs by Industry")
                 if not jobs_df.empty and not companies_df.empty:
@@ -249,10 +254,9 @@ def display_admin_dashboard():
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No jobs or companies yet.")
-            
+
             st.subheader("Recent Activity")
             col_act1, col_act2 = st.columns(2)
-            
             with col_act1:
                 st.write("**Recent Student Registrations**")
                 if not students_df.empty:
@@ -260,7 +264,6 @@ def display_admin_dashboard():
                     st.dataframe(recent_students, use_container_width=True)
                 else:
                     st.info("No students registered.")
-            
             with col_act2:
                 st.write("**Recent Job Postings**")
                 if not jobs_df.empty:
@@ -268,26 +271,39 @@ def display_admin_dashboard():
                     st.dataframe(recent_jobs, use_container_width=True)
                 else:
                     st.info("No jobs posted.")
-        
+
         elif admin_option == "🎓 Manage Students":
             st.subheader("🎓 Student Management")
             
-            col_filter1, col_filter2, col_filter3 = st.columns(3)
+            # Debug: Display students DataFrame and data types
+            with st.expander("Debug: Students DataFrame"):
+                st.write("Students DataFrame:")
+                st.write(students_df)
+                st.write("Data Types:")
+                st.write(students_df.dtypes)
             
+            col_filter1, col_filter2, col_filter3 = st.columns(3)
             with col_filter1:
-                college_filter = st.selectbox("Filter by College", ["All"] + sorted(list(students_df['College'].unique())))
+                colleges = [str(x) for x in students_df['College'].unique() if pd.notna(x)]
+                college_filter = st.selectbox("Filter by College", ["All"] + sorted(colleges))
             with col_filter2:
-                degree_filter = st.selectbox("Filter by Degree", ["All"] + sorted(list(students_df['Degree'].unique())))
+                degrees = [str(x) for x in students_df['Degree'].unique() if pd.notna(x)]
+                degree_filter = st.selectbox("Filter by Degree", ["All"] + sorted(degrees))
             with col_filter3:
-                status_filter = st.selectbox("Filter by Status", ["All"] + sorted(list(students_df['Status'].unique())))
+                statuses = [str(x) for x in students_df['Status'].unique() if pd.notna(x)]
+                status_filter = st.selectbox("Filter by Status", ["All"] + sorted(statuses))
             
             filtered_students = students_df.copy()
-            if college_filter != "All":
-                filtered_students = filtered_students[filtered_students['College'] == college_filter]
-            if degree_filter != "All":
-                filtered_students = filtered_students[filtered_students['Degree'] == degree_filter]
-            if status_filter != "All":
-                filtered_students = filtered_students[filtered_students['Status'] == status_filter]
+            try:
+                if college_filter != "All":
+                    filtered_students = filtered_students[filtered_students['College'] == college_filter]
+                if degree_filter != "All":
+                    filtered_students = filtered_students[filtered_students['Degree'] == degree_filter]
+                if status_filter != "All":
+                    filtered_students = filtered_students[filtered_students['Status'] == status_filter]
+            except Exception as e:
+                st.error(f"Error applying filters: {e}. Please check data types.")
+                filtered_students = students_df.copy()
             
             st.write(f"Showing {len(filtered_students)} students")
             
@@ -298,7 +314,7 @@ def display_admin_dashboard():
                         "Status",
                         options=["Active", "Inactive", "Pending"]
                     ),
-                    "CGPA": st.column_config.NumberColumn("CGPA", min_value=0.0, max_value=10.0),
+                    "CGPA": st.column_config.NumberColumn("CGPA", min_value=0.0, max_value=10.0, format="%.2f"),
                     "Registration_Date": st.column_config.DateColumn("Registration Date"),
                     "Resume Score": st.column_config.NumberColumn("Resume Score", min_value=0, max_value=100),
                     "Test Score": st.column_config.NumberColumn("Test Score", min_value=0, max_value=100),
@@ -314,70 +330,61 @@ def display_admin_dashboard():
             if st.button("Save Changes"):
                 for col in ['Resume Score', 'Test Score', 'Skills_Count', 'Applications_Count']:
                     edited_students[col] = pd.to_numeric(edited_students[col], errors='coerce').fillna(0).astype(int)
+                edited_students['CGPA'] = pd.to_numeric(edited_students['CGPA'], errors='coerce').fillna(0.0).astype(float)
                 st.session_state.students.update(edited_students)
                 st.session_state.students['Skills_Count'] = st.session_state.students['Skills'].apply(len)
                 st.success("Changes saved!")
-            
+
             st.subheader("Bulk Actions")
             col_bulk1, col_bulk2, col_bulk3 = st.columns(3)
-            
             with col_bulk1:
                 if st.button("Export Student Data"):
                     csv = filtered_students.to_csv(index=False)
                     st.download_button("Download CSV", csv, "students.csv", "text/csv")
-            
             with col_bulk2:
                 if st.button("Send Notification"):
                     st.info("Notification feature would send messages to selected students")
-            
             with col_bulk3:
                 if st.button("Generate Report"):
                     st.info("Report generation feature would create detailed student analytics")
-        
+
         elif admin_option == "🏢 Manage Companies":
             st.subheader("🏢 Company Management")
-            
             pending_companies = companies_df[companies_df['Approval_Status'] == 'Pending']
-            
             if not pending_companies.empty:
                 st.warning(f"⚠️ {len(pending_companies)} companies pending approval")
-                
                 for idx, company in pending_companies.iterrows():
                     with st.expander(f"Review: {company['Name']} ({company['CompanyID']})"):
                         col_info, col_action = st.columns([3, 1])
-                        
                         with col_info:
                             st.write(f"**Industry:** {company['Industry']}")
                             st.write(f"**Size:** {company['Company_Size']}")
                             st.write(f"**Jobs Posted:** {company['Jobs_Posted']}")
                             st.write(f"**Registration Date:** {company['Registration_Date'].strftime('%Y-%m-%d')}")
-                        
                         with col_action:
                             col_approve, col_reject = st.columns(2)
-                            
                             with col_approve:
                                 if st.button("Approve", key=f"approve_{company['CompanyID']}"):
-                                    index = companies_df[companies_df['CompanyID'] == company['CompanyID'].astype(str)].index[0]
+                                    index = companies_df[companies_df['CompanyID'] == company['CompanyID']].index[0]
                                     st.session_state.companies.loc[index, 'Approval_Status'] = 'Verified'
                                     st.success(f"✅ {company['Name']} approved!")
                                     st.rerun()
-                            
                             with col_reject:
                                 if st.button("Reject", key=f"reject_{company['CompanyID']}"):
-                                    index = companies_df[companies_df['CompanyID'] == company['CompanyID'].astype(str)].index[0]
+                                    index = companies_df[companies_df['CompanyID'] == company['CompanyID']].index[0]
                                     st.session_state.companies.loc[index, 'Approval_Status'] = 'Rejected'
                                     st.error(f"❌ {company['Name']} rejected!")
                                     st.rerun()
             
             st.markdown("---")
             st.subheader("All Companies")
-            
             col_comp_filter1, col_comp_filter2 = st.columns(2)
-            
             with col_comp_filter1:
-                industry_filter = st.selectbox("Filter by Industry", ["All"] + sorted(list(companies_df['Industry'].unique().astype(str))))
+                industries = [str(x) for x in companies_df['Industry'].unique() if pd.notna(x)]
+                industry_filter = st.selectbox("Filter by Industry", ["All"] + sorted(industries))
             with col_comp_filter2:
-                approval_filter = st.selectbox("Filter by Status", ["All"] + sorted(list(companies_df['Approval_Status'].unique().astype(str))))
+                statuses = [str(x) for x in companies_df['Approval_Status'].unique() if pd.notna(x)]
+                approval_filter = st.selectbox("Filter by Status", ["All"] + sorted(statuses))
             
             filtered_companies = companies_df.copy()
             if industry_filter != "All":
@@ -404,7 +411,7 @@ def display_admin_dashboard():
                     edited_companies[col] = pd.to_numeric(edited_companies[col], errors='coerce').fillna(0).astype(int)
                 st.session_state.companies.update(edited_companies)
                 st.success("Changes saved!")
-        
+
         elif admin_option == "📝 Manage Jobs":
             st.subheader("📝 Job Management")
             
@@ -416,18 +423,15 @@ def display_admin_dashboard():
                 st.write(jobs_df.dtypes)
             
             col_stat1, col_stat2, col_stat3 = st.columns(3)
-            
             with col_stat1:
                 st.metric("Total Jobs", len(jobs_df))
             with col_stat2:
                 st.metric("Open Positions", len(jobs_df[jobs_df['Status'] == 'Open']))
             with col_stat3:
-                st.metric("Total Openings", int(jobs_df['Openings'].sum()))  # Ensure integer
+                st.metric("Total Openings", int(jobs_df['Openings'].sum()))
             
             col_job_filter1, col_job_filter2, col_job_filter3 = st.columns(3)
-            
             with col_job_filter1:
-                # Ensure unique roles are strings and handle NaN
                 roles = [str(x) for x in jobs_df['Role'].unique() if pd.notna(x)]
                 role_filter = st.selectbox("Filter by Role", ["All"] + sorted(roles))
             with col_job_filter2:
@@ -467,16 +471,67 @@ def display_admin_dashboard():
             )
             
             if st.button("Save Job Changes"):
-                # Ensure numeric columns remain numeric
-                for col in numeric_columns:
+                for col in numeric_columns_jobs:
                     edited_jobs[col] = pd.to_numeric(edited_jobs[col], errors='coerce').fillna(0).astype(int)
                 st.session_state.jobs.update(edited_jobs)
                 st.success("Changes saved!")
             
+            # Shortlist Management
+            st.markdown("---")
+            st.subheader("Shortlist Management")
+            if not filtered_jobs.empty and not applications_df.empty:
+                for _, job in filtered_jobs.iterrows():
+                    with st.expander(f"Shortlist Candidates for {job['Role']} at {job['Company']} (JobID: {job['JobID']})"):
+                        job_applications = applications_df[applications_df['JobID'] == job['JobID']]
+                        if not job_applications.empty:
+                            applicants = job_applications.merge(students_df[['StudentID', 'Name', 'Email', 'Skills', 'Resume Score', 'Test Score']], on='StudentID')
+                            selected_applicants = st.multiselect(
+                                "Select Students to Shortlist",
+                                options=applicants['StudentID'].tolist(),
+                                format_func=lambda x: f"{applicants[applicants['StudentID'] == x]['Name'].iloc[0]} ({x})",
+                                key=f"shortlist_{job['JobID']}"
+                            )
+                            if st.button("Shortlist Selected", key=f"shortlist_btn_{job['JobID']}"):
+                                for student_id in selected_applicants:
+                                    new_shortlist = {
+                                        'JobID': job['JobID'],
+                                        'StudentID': student_id,
+                                        'ShortlistDate': pd.to_datetime(datetime.now()),
+                                        'Status': 'Shortlisted'
+                                    }
+                                    if not ((st.session_state.shortlists['JobID'] == job['JobID']) & 
+                                            (st.session_state.shortlists['StudentID'] == student_id)).any():
+                                        st.session_state.shortlists = pd.concat([st.session_state.shortlists, pd.DataFrame([new_shortlist])], ignore_index=True)
+                                st.success(f"✅ {len(selected_applicants)} students shortlisted for {job['Role']}!")
+                            
+                            if st.button("Share Shortlisted Details", key=f"share_{job['JobID']}"):
+                                shortlisted = st.session_state.shortlists[
+                                    (st.session_state.shortlists['JobID'] == job['JobID']) & 
+                                    (st.session_state.shortlists['Status'] == 'Shortlisted')
+                                ]
+                                if not shortlisted.empty:
+                                    shortlisted_details = shortlisted.merge(
+                                        students_df[['StudentID', 'Name', 'Email', 'Skills', 'Resume Score', 'Test Score']],
+                                        on='StudentID'
+                                    )
+                                    csv = shortlisted_details[['Name', 'Email', 'Skills', 'Resume Score', 'Test Score']].to_csv(index=False)
+                                    st.download_button(
+                                        label="Download Shortlisted Candidates",
+                                        data=csv,
+                                        file_name=f"shortlisted_{job['JobID']}.csv",
+                                        mime="text/csv",
+                                        key=f"download_{job['JobID']}"
+                                    )
+                                    st.info("Mock: Details sent to company via email.")
+                                else:
+                                    st.warning("No students shortlisted for this job.")
+                        else:
+                            st.info("No applications for this job.")
+            else:
+                st.info("No jobs or applications available.")
+
             st.subheader("Job Insights")
-            
             col_insight1, col_insight2 = st.columns(2)
-            
             with col_insight1:
                 if not jobs_df.empty:
                     role_counts = jobs_df['Role'].value_counts().head(10)
@@ -485,7 +540,6 @@ def display_admin_dashboard():
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No jobs available.")
-            
             with col_insight2:
                 if not jobs_df.empty:
                     location_apps = jobs_df.groupby('Location')['Applications'].sum().sort_values(ascending=False)
@@ -494,30 +548,24 @@ def display_admin_dashboard():
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No applications available.")
-        
+
         elif admin_option == "⚙️ Portal Settings":
             st.subheader("⚙️ Portal Settings")
-            
             st.subheader("System Announcements")
             current_announcement = st.session_state.get('announcement', 'Welcome! Job fair next week. All companies will be present.')
-            
             new_announcement = st.text_area("Global Announcement", value=current_announcement)
-            
             if st.button("Update Announcement"):
                 st.session_state.announcement = new_announcement
                 st.success("✅ Announcement updated successfully!")
             
             st.markdown("---")
             st.subheader("Portal Configuration")
-            
             col_config1, col_config2 = st.columns(2)
-            
             with col_config1:
                 st.checkbox("Enable Student Registration", value=True)
                 st.checkbox("Enable Company Registration", value=True)
                 st.checkbox("Allow Resume Upload", value=True)
                 st.checkbox("Enable Skill Testing", value=True)
-            
             with col_config2:
                 st.number_input("Max Resume Size (MB)", min_value=1, max_value=10, value=5)
                 st.number_input("Max Applications per Student", min_value=1, max_value=50, value=20)
@@ -526,26 +574,20 @@ def display_admin_dashboard():
             
             st.markdown("---")
             st.subheader("Database Maintenance")
-            
             col_maint1, col_maint2, col_maint3 = st.columns(3)
-            
             with col_maint1:
                 if st.button("Backup Database"):
                     st.info("Database backup initiated...")
-            
             with col_maint2:
                 if st.button("Clean Temp Files"):
                     st.info("Temporary files cleaned...")
-            
             with col_maint3:
                 if st.button("System Health Check"):
                     st.success("System is running normally ✅")
-        
+
         elif admin_option == "📈 Analytics":
             st.subheader("📈 Advanced Analytics")
-            
             time_period = st.selectbox("Select Time Period", ["Last 7 Days", "Last 30 Days", "Last 3 Months", "Last Year"])
-            
             today = datetime.now()
             if time_period == "Last 7 Days":
                 start_date = today - timedelta(days=7)
@@ -561,39 +603,31 @@ def display_admin_dashboard():
             filtered_applications = applications_df[applications_df['ApplicationDate'] >= start_date]
             
             st.subheader("Key Performance Indicators")
-            
             col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
-            
             with col_kpi1:
                 conversion_rate = round(len(filtered_applications) / len(filtered_students) * 100 if len(filtered_students) > 0 else 0, 1)
                 st.metric("Application Conversion Rate", f"{conversion_rate}%")
-            
             with col_kpi2:
                 avg_time_to_hire = np.random.randint(10, 15)  # Mock
                 st.metric("Avg. Time to Hire (days)", avg_time_to_hire)
-            
             with col_kpi3:
                 student_engagement = round(len(filtered_students[filtered_students['Applications_Count'] > 0]) / len(filtered_students) * 100 if len(filtered_students) > 0 else 0, 1)
                 st.metric("Student Engagement Rate", f"{student_engagement}%")
-            
             with col_kpi4:
                 company_satisfaction = round(np.random.uniform(4.0, 4.5), 1)  # Mock
                 st.metric("Company Satisfaction", f"{company_satisfaction}/5")
             
             st.markdown("---")
-            
             st.subheader("User Activity Trends")
             if not filtered_students.empty or not filtered_jobs.empty:
                 dates = pd.date_range(start=start_date.date(), end=today.date())
                 student_activity = filtered_students.groupby(filtered_students['Registration_Date'].dt.date).size().reindex(dates, fill_value=0)
                 company_activity = filtered_jobs.groupby(filtered_jobs['Posted_Date'].dt.date).size().reindex(dates, fill_value=0)
-                
                 activity_df = pd.DataFrame({
                     'Date': dates,
                     'Student Activity': student_activity,
                     'Company Activity': company_activity
                 })
-                
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(x=activity_df['Date'], y=activity_df['Student Activity'], name='Students', line=dict(color='blue')))
                 fig.add_trace(go.Scatter(x=activity_df['Date'], y=activity_df['Company Activity'], name='Companies', line=dict(color='red')))
@@ -603,7 +637,6 @@ def display_admin_dashboard():
                 st.info("No activity in the selected period.")
             
             col_skill1, col_skill2 = st.columns(2)
-            
             with col_skill1:
                 st.subheader("Most In-Demand Skills")
                 all_required_skills = []
@@ -635,8 +668,13 @@ def display_admin_dashboard():
                         'Supply': supply,
                         'Gap': [d - s for d, s in zip(demand, supply)]
                     })
-                    fig = px.scatter(gap_df, x='Supply', y='Demand', size='Gap', hover_name='Skill',
-                                   title='Skill Supply vs Demand')
+                    gap_df['Abs Gap'] = gap_df['Gap'].abs()
+                    # Debug: Display gap_df
+                    with st.expander("Debug: Skill Gap Data"):
+                        st.write(gap_df)
+                    fig = px.scatter(gap_df, x='Supply', y='Demand', size='Abs Gap', hover_name='Skill',
+                                   title='Skill Gap Analysis (Size = |Demand - Supply|)')
+                    fig.update_layout(xaxis_title='Supply (from Students)', yaxis_title='Demand (from Jobs)')
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No skills data available.")
